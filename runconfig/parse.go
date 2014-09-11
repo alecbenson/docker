@@ -17,14 +17,12 @@ import (
 )
 
 var (
-	ErrInvalidWorkingDirectory            = fmt.Errorf("The working directory is invalid. It needs to be an absolute path.")
-	ErrConflictContainerNetworkAndLinks   = fmt.Errorf("Conflicting options: --net=container can't be used with links. This would result in undefined behavior.")
-	ErrConflictContainerNetworkAndDns     = fmt.Errorf("Conflicting options: --net=container can't be used with --dns. This configuration is invalid.")
-	ErrConflictDetachAutoRemove           = fmt.Errorf("Conflicting options: --rm and -d")
-	ErrConflictNetworkHostname            = fmt.Errorf("Conflicting options: -h and the network mode (--net)")
-	ErrConflictHostNetworkAndDns          = fmt.Errorf("Conflicting options: --net=host can't be used with --dns. This configuration is invalid.")
-	ErrConflictHostNetworkAndLinks        = fmt.Errorf("Conflicting options: --net=host can't be used with links. This would result in undefined behavior.")
-	ErrConflictRestartPolicyAndAutoRemove = fmt.Errorf("Conflicting options: --restart and --rm")
+	ErrInvalidWorkingDirectory          = fmt.Errorf("The working directory is invalid. It needs to be an absolute path.")
+	ErrConflictContainerNetworkAndLinks = fmt.Errorf("Conflicting options: --net=container can't be used with links. This would result in undefined behavior.")
+	ErrConflictContainerNetworkAndDns   = fmt.Errorf("Conflicting options: --net=container can't be used with --dns. This configuration is invalid.")
+	ErrConflictNetworkHostname          = fmt.Errorf("Conflicting options: -h and the network mode (--net)")
+	ErrConflictHostNetworkAndDns        = fmt.Errorf("Conflicting options: --net=host can't be used with --dns. This configuration is invalid.")
+	ErrConflictHostNetworkAndLinks      = fmt.Errorf("Conflicting options: --net=host can't be used with links. This would result in undefined behavior.")
 )
 
 // FIXME Only used in tests
@@ -73,7 +71,6 @@ func parseRun(cmd *flag.FlagSet, args []string, sysInfo *sysinfo.SysInfo) (*Conf
 		flCpuShares       = cmd.Int64([]string{"c", "-cpu-shares"}, 0, "CPU shares (relative weight)")
 		flCpuset          = cmd.String([]string{"-cpuset"}, "", "CPUs in which to allow execution (0-3, 0,1)")
 		flNetMode         = cmd.String([]string{"-net"}, "bridge", "Set the Network mode for the container\n'bridge': creates a new network stack for the container on the docker bridge\n'none': no networking for this container\n'container:<name|id>': reuses another container network stack\n'host': use the host network stack inside the container.  Note: the host mode gives the container full access to local system services such as D-bus and is therefore considered insecure.")
-		flRestartPolicy   = cmd.String([]string{"-restart"}, "", "Restart policy to apply when a container exits (no, on-failure[:max-retry], always)")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR.")
@@ -242,15 +239,6 @@ func parseRun(cmd *flag.FlagSet, args []string, sysInfo *sysinfo.SysInfo) (*Conf
 		return nil, nil, cmd, fmt.Errorf("--net: invalid net mode: %v", err)
 	}
 
-	restartPolicy, err := parseRestartPolicy(*flRestartPolicy)
-	if err != nil {
-		return nil, nil, cmd, err
-	}
-
-	if *flAutoRemove && (restartPolicy.Name == "always" || restartPolicy.Name == "on-failure") {
-		return nil, nil, cmd, ErrConflictRestartPolicyAndAutoRemove
-	}
-
 	config := &Config{
 		Hostname:        hostname,
 		Domainname:      domainname,
@@ -289,7 +277,6 @@ func parseRun(cmd *flag.FlagSet, args []string, sysInfo *sysinfo.SysInfo) (*Conf
 		Devices:         deviceMappings,
 		CapAdd:          flCapAdd.GetAll(),
 		CapDrop:         flCapDrop.GetAll(),
-		RestartPolicy:   restartPolicy,
 	}
 
 	if sysInfo != nil && flMemory > 0 && !sysInfo.SwapLimit {
@@ -305,7 +292,7 @@ func parseRun(cmd *flag.FlagSet, args []string, sysInfo *sysinfo.SysInfo) (*Conf
 }
 
 // parseRestartPolicy returns the parsed policy or an error indicating what is incorrect
-func parseRestartPolicy(policy string) (RestartPolicy, error) {
+func ParseRestartPolicy(policy string) (RestartPolicy, error) {
 	p := RestartPolicy{}
 
 	if policy == "" {
