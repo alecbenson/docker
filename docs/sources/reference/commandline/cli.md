@@ -71,6 +71,7 @@ expect an integer, and they can only be specified once.
       --mtu=0                                    Set the containers network MTU
                                                    if no value is provided: default to the default route MTU or 1500 if no default route is available
       -p, --pidfile="/var/run/docker.pid"        Path to use for daemon PID file
+      --registry-mirror=[]                       Specify a preferred Docker registry mirror
       -s, --storage-driver=""                    Force the Docker runtime to use a specific storage driver
       --selinux-enabled=false                    Enable selinux support. SELinux does not presently support the BTRFS storage driver
       --storage-opt=[]                           Set storage driver options
@@ -207,8 +208,8 @@ When a single Dockerfile is given as `URL` or is piped through `STDIN`
 (`docker build - < Dockerfile`), then no context is set.
 
 When a Git repository is set as `URL`, then the repository is used as
-the context. The Git repository is cloned with its submodules (`git
-clone -recursive`). A fresh `git clone` occurs in a temporary directory
+the context. The Git repository is cloned with its submodules
+(`git clone -recursive`). A fresh `git clone` occurs in a temporary directory
 on your local host, and then this is sent to the Docker daemon as the
 context.  This way, your local user credentials and VPN's etc can be
 used to access private repositories.

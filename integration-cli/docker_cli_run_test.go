@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -24,7 +25,9 @@ import (
 func TestDockerRunEchoStdout(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "busybox", "echo", "test123")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	if out != "test123\n" {
 		t.Errorf("container should've printed 'test123'")
@@ -39,7 +42,9 @@ func TestDockerRunEchoStdout(t *testing.T) {
 func TestDockerRunEchoStdoutWithMemoryLimit(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "-m", "2786432", "busybox", "echo", "test")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	out = strings.Trim(out, "\r\n")
 
@@ -57,7 +62,9 @@ func TestDockerRunEchoStdoutWithMemoryLimit(t *testing.T) {
 func TestDockerRunEchoStdoutWitCPULimit(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "-c", "1000", "busybox", "echo", "test")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	if out != "test\n" {
 		t.Errorf("container should've printed 'test'")
@@ -72,7 +79,9 @@ func TestDockerRunEchoStdoutWitCPULimit(t *testing.T) {
 func TestDockerRunEchoStdoutWithCPUAndMemoryLimit(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "-c", "1000", "-m", "2786432", "busybox", "echo", "test")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	if out != "test\n" {
 		t.Errorf("container should've printed 'test', got %q instead", out)
@@ -87,7 +96,9 @@ func TestDockerRunEchoStdoutWithCPUAndMemoryLimit(t *testing.T) {
 func TestDockerRunEchoNamedContainer(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "--name", "testfoonamedcontainer", "busybox", "echo", "test")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	if out != "test\n" {
 		t.Errorf("container should've printed 'test'")
@@ -106,7 +117,9 @@ func TestDockerRunEchoNamedContainer(t *testing.T) {
 func TestDockerRunLeakyFileDescriptors(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "busybox", "ls", "-C", "/proc/self/fd")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	// normally, we should only get 0, 1, and 2, but 3 gets created by "ls" when it does "opendir" on the "fd" directory
 	if out != "0  1  2  3\n" {
@@ -123,7 +136,9 @@ func TestDockerRunLeakyFileDescriptors(t *testing.T) {
 func TestDockerRunPingGoogle(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "busybox", "ping", "-c", "1", "8.8.8.8")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	errorOut(err, t, "container should've been able to ping 8.8.8.8")
 
@@ -170,7 +185,9 @@ func TestDockerRunExitCodeOne(t *testing.T) {
 func TestRunStdinPipe(t *testing.T) {
 	runCmd := exec.Command("bash", "-c", `echo "blahblah" | docker run -i -a stdin busybox cat`)
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	out = stripTrailingCharacters(out)
 
@@ -205,7 +222,9 @@ func TestRunStdinPipe(t *testing.T) {
 func TestDockerRunDetachedContainerIDPrinting(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "-d", "busybox", "true")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	out = stripTrailingCharacters(out)
 
@@ -235,7 +254,9 @@ func TestDockerRunDetachedContainerIDPrinting(t *testing.T) {
 func TestDockerRunWorkingDirectory(t *testing.T) {
 	runCmd := exec.Command(dockerBinary, "run", "-w", "/root", "busybox", "pwd")
 	out, _, _, err := runCommandWithStdoutStderr(runCmd)
-	errorOut(err, t, out)
+	if err != nil {
+		t.Fatalf("failed to run container: %v, output: %q", err, out)
+	}
 
 	out = stripTrailingCharacters(out)
 
@@ -1728,27 +1749,103 @@ func TestBindMounts(t *testing.T) {
 	logDone("run - bind mounts")
 }
 
-func TestHostsLinkedContainerUpdate(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "docker-integration")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
+func TestMutableNetworkFiles(t *testing.T) {
+	defer deleteAllContainers()
 
-	out, _, err := runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--name", "c1", "busybox", "sleep", "5"))
+	for _, fn := range []string{"resolv.conf", "hosts"} {
+		deleteAllContainers()
+
+		out, _, err := runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--name", "c1", "busybox", "sh", "-c", fmt.Sprintf("echo success >/etc/%s; while true; do sleep 1; done", fn)))
+		if err != nil {
+			t.Fatal(err, out)
+		}
+
+		time.Sleep(1 * time.Second)
+
+		contID := strings.TrimSpace(out)
+
+		f, err := os.Open(filepath.Join("/var/lib/docker/containers", contID, fn))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		content, err := ioutil.ReadAll(f)
+		f.Close()
+
+		if strings.TrimSpace(string(content)) != "success" {
+			t.Fatal("Content was not what was modified in the container", string(content))
+		}
+
+		out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--name", "c2", "busybox", "sh", "-c", fmt.Sprintf("while true; do cat /etc/%s; sleep 1; done", fn)))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		contID = strings.TrimSpace(out)
+
+		resolvConfPath := filepath.Join("/var/lib/docker/containers", contID, fn)
+
+		f, err = os.OpenFile(resolvConfPath, os.O_WRONLY|os.O_SYNC|os.O_APPEND, 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.Seek(0, 0); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+
+		if err := f.Truncate(0); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+
+		if _, err := f.Write([]byte("success2\n")); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+
+		f.Close()
+
+		time.Sleep(2 * time.Second) // don't race sleep
+
+		out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "logs", "c2"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		lines := strings.Split(out, "\n")
+		if strings.TrimSpace(lines[len(lines)-2]) != "success2" {
+			t.Fatalf("Did not find the correct output in /etc/%s: %s %#v", fn, out, lines)
+		}
+	}
+}
+
+func TestHostsLinkedContainerUpdate(t *testing.T) {
+	deleteAllContainers()
+	out, _, err := runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--name", "c1", "busybox", "sh", "-c", "while true; do sleep 1; done"))
 	if err != nil {
 		t.Fatal(err, out)
 	}
 
 	// TODO fix docker cp and /etc/hosts
-	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--link", "c1:c1", "--name", "c2", "busybox", "sh", "-c", "while true;do cp /etc/hosts /hosts; done"))
+	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "run", "-d", "--link", "c1:c1", "--name", "c2", "busybox", "sh", "-c", "while true;do sleep 1; done"))
 	if err != nil {
 		t.Fatal(err, out)
 	}
 
-	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "cp", "c2:/hosts", tmpdir+"/1"))
+	contID := strings.TrimSpace(out)
+
+	f, err := os.Open(filepath.Join("/var/lib/docker/containers", contID, "hosts"))
 	if err != nil {
-		t.Fatal(err, out)
+		t.Fatal(err)
+	}
+
+	originalContent, err := ioutil.ReadAll(f)
+	f.Close()
+
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "restart", "-t", "0", "c1"))
@@ -1756,17 +1853,19 @@ func TestHostsLinkedContainerUpdate(t *testing.T) {
 		t.Fatal(err, out)
 	}
 
-	out, _, err = runCommandWithOutput(exec.Command(dockerBinary, "cp", "c2:/hosts", tmpdir+"/2"))
+	f, err = os.Open(filepath.Join("/var/lib/docker/containers", contID, "hosts"))
 	if err != nil {
-		t.Fatal(err, out)
+		t.Fatal(err)
 	}
 
-	out, _, _, err = runCommandWithStdoutStderr(exec.Command("diff", tmpdir+"/1", tmpdir+"/2"))
-	if err == nil {
-		t.Fatalf("Expecting error, got none")
+	newContent, err := ioutil.ReadAll(f)
+	f.Close()
+
+	if err != nil {
+		t.Fatal(err)
 	}
-	out = stripTrailingCharacters(out)
-	if out == "" {
+
+	if strings.TrimSpace(string(originalContent)) == strings.TrimSpace(string(newContent)) {
 		t.Fatalf("expected /etc/hosts to be updated, but wasn't")
 	}
 
@@ -1874,4 +1973,24 @@ func TestRunDeallocatePortOnMissingIptablesRule(t *testing.T) {
 	}
 	deleteAllContainers()
 	logDone("run - port should be deallocated even on iptables error")
+}
+
+func TestRunPortInUse(t *testing.T) {
+	port := "1234"
+	l, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	cmd := exec.Command(dockerBinary, "run", "-p", port+":80", "busybox", "true")
+	out, _, err := runCommandWithOutput(cmd)
+	if err == nil {
+		t.Fatalf("Binding on used port must fail")
+	}
+	if !strings.Contains(out, "address already in use") {
+		t.Fatalf("Out must be about \"address already in use\", got %s", out)
+	}
+
+	deleteAllContainers()
+	logDone("run - fail if port already in use")
 }

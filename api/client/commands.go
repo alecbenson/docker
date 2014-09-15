@@ -29,6 +29,7 @@ import (
 	"github.com/docker/docker/nat"
 	"github.com/docker/docker/opts"
 	"github.com/docker/docker/pkg/log"
+	flag "github.com/docker/docker/pkg/mflag"
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/parsers/filters"
 	"github.com/docker/docker/pkg/signal"
@@ -53,48 +54,9 @@ func (cli *DockerCli) CmdHelp(args ...string) error {
 			return nil
 		}
 	}
-	help := fmt.Sprintf("Usage: docker [OPTIONS] COMMAND [arg...]\n -H=[unix://%s]: tcp://host:port to bind/connect to or unix://path/to/socket to use\n\nA self-sufficient runtime for linux containers.\n\nCommands:\n", api.DEFAULTUNIXSOCKET)
-	for _, command := range [][]string{
-		{"attach", "Attach to a running container"},
-		{"build", "Build an image from a Dockerfile"},
-		{"commit", "Create a new image from a container's changes"},
-		{"cp", "Copy files/folders from a container's filesystem to the host path"},
-		{"create", "Create a new container"},
-		{"diff", "Inspect changes on a container's filesystem"},
-		{"events", "Get real time events from the server"},
-		{"export", "Stream the contents of a container as a tar archive"},
-		{"history", "Show the history of an image"},
-		{"images", "List images"},
-		{"import", "Create a new filesystem image from the contents of a tarball"},
-		{"info", "Display system-wide information"},
-		{"inspect", "Return low-level information on a container"},
-		{"kill", "Kill a running container"},
-		{"load", "Load an image from a tar archive"},
-		{"login", "Register or log in to a Docker registry server"},
-		{"logout", "Log out from a Docker registry server"},
-		{"logs", "Fetch the logs of a container"},
-		{"port", "Lookup the public-facing port that is NAT-ed to PRIVATE_PORT"},
-		{"pause", "Pause all processes within a container"},
-		{"ps", "List containers"},
-		{"pull", "Pull an image or a repository from a Docker registry server"},
-		{"push", "Push an image or a repository to a Docker registry server"},
-		{"restart", "Restart a running container"},
-		{"rm", "Remove one or more containers"},
-		{"rmi", "Remove one or more images"},
-		{"run", "Run a command in a new container"},
-		{"save", "Save an image to a tar archive"},
-		{"search", "Search for an image on the Docker Hub"},
-		{"start", "Start a stopped container"},
-		{"stop", "Stop a running container"},
-		{"tag", "Tag an image into a repository"},
-		{"top", "Lookup the running processes of a container"},
-		{"unpause", "Unpause a paused container"},
-		{"version", "Show the Docker version information"},
-		{"wait", "Block until a container stops, then print its exit code"},
-	} {
-		help += fmt.Sprintf("    %-10.10s%s\n", command[0], command[1])
-	}
-	fmt.Fprintf(cli.err, "%s\n", help)
+
+	flag.Usage()
+
 	return nil
 }
 
@@ -2003,184 +1965,91 @@ func (cli *DockerCli) pullImage(image string) error {
 	return nil
 }
 
-type cidFile struct {
-	path    string
-	file    *os.File
-	written bool
-}
-
-func newCIDFile(path string) (*cidFile, error) {
-	if _, err := os.Stat(path); err == nil {
-		return nil, fmt.Errorf("Container ID file found, make sure the other container isn't running or delete %s", path)
-	}
-	f, err := os.Create(path)
+func (cli *DockerCli) CmdRun(args ...string) error {
+	// FIXME: just use runconfig.Parse already
+	config, hostConfig, cmd, err := runconfig.ParseSubcommand(cli.Subcmd("run", "IMAGE [COMMAND] [ARG...]", "Run a command in a new container"), args, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create the container ID file: %s", err)
+		return err
+	}
+	if config.Image == "" {
+		cmd.Usage()
+		return nil
 	}
 
-	return &cidFile{path: path, file: f}, nil
-}
+	// Retrieve relevant client-side config
+	var (
+		flName        = cmd.Lookup("name")
+		flRm          = cmd.Lookup("rm")
+		flSigProxy    = cmd.Lookup("sig-proxy")
+		autoRemove, _ = strconv.ParseBool(flRm.Value.String())
+		sigProxy, _   = strconv.ParseBool(flSigProxy.Value.String())
+	)
 
-func (cid *cidFile) Close() error {
-	cid.file.Close()
+	// Disable sigProxy in case on TTY
+	if config.Tty {
+		sigProxy = false
+	}
 
-	if !cid.written {
-		if err := os.Remove(cid.path); err != nil {
-			return fmt.Errorf("failed to remove the CID file '%s': %s \n", cid.path, err)
+	var containerIDFile io.WriteCloser
+	if len(hostConfig.ContainerIDFile) > 0 {
+		if _, err := os.Stat(hostConfig.ContainerIDFile); err == nil {
+			return fmt.Errorf("Container ID file found, make sure the other container isn't running or delete %s", hostConfig.ContainerIDFile)
 		}
+		if containerIDFile, err = os.Create(hostConfig.ContainerIDFile); err != nil {
+			return fmt.Errorf("Failed to create the container ID file: %s", err)
+		}
+		defer func() {
+			containerIDFile.Close()
+			var (
+				cidFileInfo os.FileInfo
+				err         error
+			)
+			if cidFileInfo, err = os.Stat(hostConfig.ContainerIDFile); err != nil {
+				return
+			}
+			if cidFileInfo.Size() == 0 {
+				if err := os.Remove(hostConfig.ContainerIDFile); err != nil {
+					fmt.Printf("failed to remove Container ID file '%s': %s \n", hostConfig.ContainerIDFile, err)
+				}
+			}
+		}()
 	}
 
-	return nil
-}
-
-func (cid *cidFile) Write(id string) error {
-	if _, err := cid.file.Write([]byte(id)); err != nil {
-		return fmt.Errorf("Failed to write the container ID to the file: %s", err)
-	}
-	cid.written = true
-	return nil
-}
-
-func (cli *DockerCli) createContainer(config *runconfig.Config, hostConfig *runconfig.HostConfig, cidfile, name string) (engine.Env, error) {
 	containerValues := url.Values{}
-	if name != "" {
+	if name := flName.Value.String(); name != "" {
 		containerValues.Set("name", name)
 	}
 
-	var data interface{}
-	if hostConfig != nil {
-		data = runconfig.MergeConfigs(config, hostConfig)
-	} else {
-		data = config
-	}
-
-	var containerIDFile *cidFile
-	if cidfile != "" {
-		var err error
-		if containerIDFile, err = newCIDFile(cidfile); err != nil {
-			return nil, err
-		}
-		defer containerIDFile.Close()
-	}
-
 	//create the container
-	stream, statusCode, err := cli.call("POST", "/containers/create?"+containerValues.Encode(), data, false)
+	stream, statusCode, err := cli.call("POST", "/containers/create?"+containerValues.Encode(), config, false)
 	//if image not found try to pull it
 	if statusCode == 404 {
 		fmt.Fprintf(cli.err, "Unable to find image '%s' locally\n", config.Image)
 
 		if err = cli.pullImage(config.Image); err != nil {
-			return nil, err
+			return err
 		}
 		// Retry
-		if stream, _, err = cli.call("POST", "/containers/create?"+containerValues.Encode(), data, false); err != nil {
-			return nil, err
+		if stream, _, err = cli.call("POST", "/containers/create?"+containerValues.Encode(), config, false); err != nil {
+			return err
 		}
 	} else if err != nil {
-		return nil, err
+		return err
 	}
 
-	var result engine.Env
-	if err := result.Decode(stream); err != nil {
-		return nil, err
+	var runResult engine.Env
+	if err := runResult.Decode(stream); err != nil {
+		return err
 	}
 
-	for _, warning := range result.GetList("Warnings") {
+	for _, warning := range runResult.GetList("Warnings") {
 		fmt.Fprintf(cli.err, "WARNING: %s\n", warning)
 	}
 
-	if containerIDFile != nil {
-		if err = containerIDFile.Write(result.Get("Id")); err != nil {
-			return nil, err
+	if len(hostConfig.ContainerIDFile) > 0 {
+		if _, err = containerIDFile.Write([]byte(runResult.Get("Id"))); err != nil {
+			return fmt.Errorf("Failed to write the container ID to the file: %s", err)
 		}
-	}
-
-	return result, nil
-
-}
-
-func (cli *DockerCli) CmdCreate(args ...string) error {
-	// FIXME: just use runconfig.Parse already
-	cmd := cli.Subcmd("create", "IMAGE [COMMAND] [ARG...]", "Create a new container")
-
-	// These are flags not stored in Config/HostConfig
-	var (
-		flName = cmd.String([]string{"-name"}, "", "Assign a name to the container")
-	)
-
-	config, hostConfig, cmd, err := runconfig.ParseSubcommand(cmd, args, nil)
-	if err != nil {
-		return err
-	}
-	if config.Image == "" {
-		cmd.Usage()
-		return nil
-	}
-
-	createResult, err := cli.createContainer(config, hostConfig, hostConfig.ContainerIDFile, *flName)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cli.out, "%s\n", createResult.Get("Id"))
-
-	return nil
-}
-
-func (cli *DockerCli) CmdRun(args ...string) error {
-	// FIXME: just use runconfig.Parse already
-	cmd := cli.Subcmd("run", "[OPTIONS] IMAGE [COMMAND] [ARG...]", "Run a command in a new container")
-
-	// These are flags not stored in Config/HostConfig
-	var (
-		flAutoRemove    = cmd.Bool([]string{"#rm", "-rm"}, false, "Automatically remove the container when it exits (incompatible with -d)")
-		flDetach        = cmd.Bool([]string{"d", "-detach"}, false, "Detached mode: run the container in the background and print the new container ID")
-		flSigProxy      = cmd.Bool([]string{"#sig-proxy", "-sig-proxy"}, true, "Proxy received signals to the process (even in non-TTY mode). SIGCHLD, SIGSTOP, and SIGKILL are not proxied.")
-		flName          = cmd.String([]string{"#name", "-name"}, "", "Assign a name to the container")
-		flRestartPolicy = cmd.String([]string{"-restart"}, "", "Restart policy to apply when a container exits (no, on-failure[:max-retry], always)")
-
-		flAttach *opts.ListOpts
-
-		ErrConflictAttachDetach               = fmt.Errorf("Conflicting options: -a and -d")
-		ErrConflictRestartPolicyAndAutoRemove = fmt.Errorf("Conflicting options: --restart and --rm")
-		ErrConflictDetachAutoRemove           = fmt.Errorf("Conflicting options: --rm and -d")
-	)
-
-	config, hostConfig, cmd, err := runconfig.ParseSubcommand(cmd, args, nil)
-	if err != nil {
-		return err
-	}
-	if config.Image == "" {
-		cmd.Usage()
-		return nil
-	}
-
-	if *flDetach {
-		if fl := cmd.Lookup("attach"); fl != nil {
-			flAttach = fl.Value.(*opts.ListOpts)
-			if flAttach.Len() != 0 {
-				return ErrConflictAttachDetach
-			}
-		}
-		if *flAutoRemove {
-			return ErrConflictDetachAutoRemove
-		}
-
-		config.AttachStdin = false
-		config.AttachStdout = false
-		config.AttachStderr = false
-		config.StdinOnce = false
-	}
-
-	// Disable flSigProxy in case on TTY
-	sigProxy := *flSigProxy
-	if config.Tty {
-		sigProxy = false
-	}
-
-	runResult, err := cli.createContainer(config, nil, hostConfig.ContainerIDFile, *flName)
-	if err != nil {
-		return err
 	}
 
 	if sigProxy {
@@ -2201,17 +2070,6 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			fmt.Fprintf(cli.out, "%s\n", runResult.Get("Id"))
 		}()
 	}
-
-	restartPolicy, err := runconfig.ParseRestartPolicy(*flRestartPolicy)
-	if err != nil {
-		return err
-	}
-
-	if *flAutoRemove && (restartPolicy.Name == "always" || restartPolicy.Name == "on-failure") {
-		return ErrConflictRestartPolicyAndAutoRemove
-	}
-
-	hostConfig.RestartPolicy = restartPolicy
 
 	// We need to instanciate the chan because the select needs it. It can
 	// be closed but can't be uninitialized.
@@ -2300,7 +2158,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 	var status int
 
 	// Attached mode
-	if *flAutoRemove {
+	if autoRemove {
 		// Autoremove: wait for the container to finish, retrieve
 		// the exit code and remove the container
 		if _, _, err := readBody(cli.call("POST", "/containers/"+runResult.Get("Id")+"/wait", nil, false)); err != nil {
