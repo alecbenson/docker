@@ -126,6 +126,18 @@ case "$lsb_dist" in
 			fi
 		fi
 
+		# install apparmor utils if they're missing and apparmor is enabled in the kernel
+		# otherwise Docker will fail to start
+		if [ "$(cat /sys/module/apparmor/parameters/enabled 2>/dev/null)" = 'Y' ]; then
+			if command -v apparmor_parser &> /dev/null; then
+				echo 'apparmor is enabled in the kernel and apparmor utils were already installed'
+			else
+				echo 'apparmor is enabled in the kernel, but apparmor_parser missing'
+				apt_get_update
+				( set -x; $sh_c 'sleep 3; apt-get install -y -q apparmor' )
+			fi
+		fi
+
 		if [ ! -e /usr/lib/apt/methods/https ]; then
 			apt_get_update
 			( set -x; $sh_c 'sleep 3; apt-get install -y -q apt-transport-https' )
@@ -189,12 +201,14 @@ case "$lsb_dist" in
 		;;
 esac
 
-echo >&2
-echo >&2 '  Either your platform is not easily detectable, is not supported by this'
-echo >&2 '  installer script (yet - PRs welcome!), or does not yet have a package for'
-echo >&2 '  Docker.  Please visit the following URL for more detailed installation'
-echo >&2 '  instructions:'
-echo >&2
-echo >&2 '    http://docs.docker.io/en/latest/installation/'
-echo >&2
+cat >&2 <<'EOF'
+
+  Either your platform is not easily detectable, is not supported by this
+  installer script (yet - PRs welcome! [hack/install.sh]), or does not yet have
+  a package for Docker.  Please visit the following URL for more detailed
+  installation instructions:
+
+    http://docs.docker.io/en/latest/installation/
+
+EOF
 exit 1
