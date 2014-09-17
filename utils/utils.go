@@ -24,6 +24,13 @@ import (
 	"github.com/docker/docker/pkg/log"
 )
 
+const (
+	// Define our own version of RFC339Nano because we want one
+	// that pads the nano seconds part with zeros to ensure
+	// the timestamps are aligned in the logs.
+	RFC3339NanoFixed = "2006-01-02T15:04:05.000000000Z07:00"
+)
+
 type KeyValuePair struct {
 	Key   string
 	Value string
@@ -523,48 +530,44 @@ func TreeSize(dir string) (size int64, err error) {
 // can be read and returns an error if some files can't be read
 // symlinks which point to non-existing files don't trigger an error
 func ValidateContextDirectory(srcPath string, excludes []string) error {
-	var finalError error
-
-	filepath.Walk(filepath.Join(srcPath, "."), func(filePath string, f os.FileInfo, err error) error {
+	return filepath.Walk(filepath.Join(srcPath, "."), func(filePath string, f os.FileInfo, err error) error {
 		// skip this directory/file if it's not in the path, it won't get added to the context
-		relFilePath, err := filepath.Rel(srcPath, filePath)
-		if err != nil && os.IsPermission(err) {
-			return nil
-		}
-
-		skip, err := Matches(relFilePath, excludes)
-		if err != nil {
-			finalError = err
-		}
-		if skip {
+		if relFilePath, err := filepath.Rel(srcPath, filePath); err != nil {
+			return err
+		} else if skip, err := Matches(relFilePath, excludes); err != nil {
+			return err
+		} else if skip {
 			if f.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		if _, err := os.Stat(filePath); err != nil && os.IsPermission(err) {
-			finalError = fmt.Errorf("can't stat '%s'", filePath)
+		if err != nil {
+			if os.IsPermission(err) {
+				return fmt.Errorf("can't stat '%s'", filePath)
+			}
+			if os.IsNotExist(err) {
+				return nil
+			}
 			return err
 		}
+
 		// skip checking if symlinks point to non-existing files, such symlinks can be useful
 		// also skip named pipes, because they hanging on open
-		lstat, _ := os.Lstat(filePath)
-		if lstat != nil && lstat.Mode()&(os.ModeSymlink|os.ModeNamedPipe) != 0 {
+		if f.Mode()&(os.ModeSymlink|os.ModeNamedPipe) != 0 {
 			return nil
 		}
 
 		if !f.IsDir() {
 			currentFile, err := os.Open(filePath)
 			if err != nil && os.IsPermission(err) {
-				finalError = fmt.Errorf("no permission to read from '%s'", filePath)
-				return err
+				return fmt.Errorf("no permission to read from '%s'", filePath)
 			}
 			currentFile.Close()
 		}
 		return nil
 	})
-	return finalError
 }
 
 func StringsContainsNoCase(slice []string, s string) bool {

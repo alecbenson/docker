@@ -81,7 +81,7 @@ func (ts tarSum) selectHeaders(h *tar.Header, v Version) (set [][2]string) {
 		{"devmajor", strconv.Itoa(int(h.Devmajor))},
 		{"devminor", strconv.Itoa(int(h.Devminor))},
 	} {
-		if v == VersionDev && elem[0] == "mtime" {
+		if v >= VersionDev && elem[0] == "mtime" {
 			continue
 		}
 		set = append(set, elem)
@@ -93,6 +93,20 @@ func (ts *tarSum) encodeHeader(h *tar.Header) error {
 	for _, elem := range ts.selectHeaders(h, ts.Version()) {
 		if _, err := ts.h.Write([]byte(elem[0] + elem[1])); err != nil {
 			return err
+		}
+	}
+
+	// include the additional pax headers, from an ordered list
+	if ts.Version() >= VersionDev {
+		var keys []string
+		for k := range h.Xattrs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if _, err := ts.h.Write([]byte(k + h.Xattrs[k])); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -148,6 +162,12 @@ func (ts *tarSum) Read(buf []byte) (int, error) {
 			currentHeader, err := ts.tarR.Next()
 			if err != nil {
 				if err == io.EOF {
+					if err := ts.tarW.Close(); err != nil {
+						return 0, err
+					}
+					if _, err := io.Copy(ts.gz, ts.bufTar); err != nil {
+						return 0, err
+					}
 					if err := ts.gz.Close(); err != nil {
 						return 0, err
 					}

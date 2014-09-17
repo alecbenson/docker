@@ -2,7 +2,10 @@ package tarsum
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -37,6 +40,18 @@ var testLayers = []testLayer{
 		jsonfile: "testdata/46af0962ab5afeb5ce6740d4d91652e69206fc991fd5328c1a94d364ad00e457/json",
 		gzip:     true,
 		tarsum:   "tarsum+sha256:e58fcf7418d4390dec8e8fb69d88c06ec07039d651fedd3aa72af9972e7d046b"},
+	{
+		// Tests existing version of TarSum when xattrs are present
+		filename: "testdata/xattr/layer.tar",
+		jsonfile: "testdata/xattr/json",
+		version:  Version0,
+		tarsum:   "tarsum+sha256:e86f81a4d552f13039b1396ed03ca968ea9717581f9577ef1876ea6ff9b38c98"},
+	{
+		// Tests next version of TarSum when xattrs are present
+		filename: "testdata/xattr/layer.tar",
+		jsonfile: "testdata/xattr/json",
+		version:  VersionDev,
+		tarsum:   "tarsum.dev+sha256:6235cd3a2afb7501bac541772a3d61a3634e95bc90bb39a4676e2cb98d08390d"},
 	{
 		filename: "testdata/511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158/layer.tar",
 		jsonfile: "testdata/511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158/json",
@@ -99,6 +114,77 @@ func sizedTar(opts sizedOptions) io.Reader {
 		}
 	}
 	return fh
+}
+
+func emptyTarSum(gzip bool) (TarSum, error) {
+	reader, writer := io.Pipe()
+	tarWriter := tar.NewWriter(writer)
+
+	// Immediately close tarWriter and write-end of the
+	// Pipe in a separate goroutine so we don't block.
+	go func() {
+		tarWriter.Close()
+		writer.Close()
+	}()
+
+	return NewTarSum(reader, !gzip, Version0)
+}
+
+// TestEmptyTar tests that tarsum does not fail to read an empty tar
+// and correctly returns the hex digest of an empty hash.
+func TestEmptyTar(t *testing.T) {
+	// Test without gzip.
+	ts, err := emptyTarSum(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	zeroBlock := make([]byte, 1024)
+	buf := new(bytes.Buffer)
+
+	n, err := io.Copy(buf, ts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if n != int64(len(zeroBlock)) || !bytes.Equal(buf.Bytes(), zeroBlock) {
+		t.Fatalf("tarSum did not write the correct number of zeroed bytes: %d", n)
+	}
+
+	expectedSum := ts.Version().String() + "+sha256:" + hex.EncodeToString(sha256.New().Sum(nil))
+	resultSum := ts.Sum(nil)
+
+	if resultSum != expectedSum {
+		t.Fatalf("expected [%s] but got [%s]", expectedSum, resultSum)
+	}
+
+	// Test with gzip.
+	ts, err = emptyTarSum(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+
+	n, err = io.Copy(buf, ts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufgz := new(bytes.Buffer)
+	gz := gzip.NewWriter(bufgz)
+	n, err = io.Copy(gz, bytes.NewBuffer(zeroBlock))
+	gz.Close()
+	gzBytes := bufgz.Bytes()
+
+	if n != int64(len(zeroBlock)) || !bytes.Equal(buf.Bytes(), gzBytes) {
+		t.Fatalf("tarSum did not write the correct number of gzipped-zeroed bytes: %d", n)
+	}
+
+	resultSum = ts.Sum(nil)
+
+	if resultSum != expectedSum {
+		t.Fatalf("expected [%s] but got [%s]", expectedSum, resultSum)
+	}
 }
 
 func TestTarSums(t *testing.T) {

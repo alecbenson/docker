@@ -18,7 +18,6 @@ import (
 
 	"github.com/docker/docker/archive"
 	"github.com/docker/docker/daemon/execdriver"
-	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/engine"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/links"
@@ -86,8 +85,9 @@ type Container struct {
 	VolumesRW  map[string]bool
 	hostConfig *runconfig.HostConfig
 
-	activeLinks map[string]*links.Link
-	monitor     *containerMonitor
+	activeLinks  map[string]*links.Link
+	monitor      *containerMonitor
+	execCommands *execStore
 }
 
 func (container *Container) FromDisk() error {
@@ -419,6 +419,11 @@ func (container *Container) buildHostsFiles(IP string) error {
 	for linkAlias, child := range children {
 		_, alias := path.Split(linkAlias)
 		extraContent[alias] = child.NetworkSettings.IPAddress
+	}
+
+	for _, extraHost := range container.hostConfig.ExtraHosts {
+		parts := strings.Split(extraHost, ":")
+		extraContent[parts[0]] = parts[1]
 	}
 
 	return etchosts.Build(container.HostsPath, IP, container.Config.Hostname, container.Config.Domainname, &extraContent)
@@ -754,21 +759,13 @@ func (container *Container) GetSize() (int64, int64) {
 	}
 	defer container.Unmount()
 
-	if differ, ok := driver.(graphdriver.Differ); ok {
-		sizeRw, err = differ.DiffSize(container.ID)
-		if err != nil {
-			log.Errorf("Warning: driver %s couldn't return diff size of container %s: %s", driver, container.ID, err)
-			// FIXME: GetSize should return an error. Not changing it now in case
-			// there is a side-effect.
-			sizeRw = -1
-		}
-	} else {
-		changes, _ := container.changes()
-		if changes != nil {
-			sizeRw = archive.ChangesSize(container.basefs, changes)
-		} else {
-			sizeRw = -1
-		}
+	initID := fmt.Sprintf("%s-init", container.ID)
+	sizeRw, err = driver.DiffSize(container.ID, initID)
+	if err != nil {
+		log.Errorf("Warning: driver %s couldn't return diff size of container %s: %s", driver, container.ID, err)
+		// FIXME: GetSize should return an error. Not changing it now in case
+		// there is a side-effect.
+		sizeRw = -1
 	}
 
 	if _, err = os.Stat(container.basefs); err != nil {

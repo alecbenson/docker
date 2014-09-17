@@ -35,11 +35,11 @@ will set the value to the opposite of the default value.
 
 Options like `-a=[]` indicate they can be specified multiple times:
 
-    $ docker run -a stdin -a stdout -a stderr -i -t ubuntu /bin/bash
+    $ sudo docker run -a stdin -a stdout -a stderr -i -t ubuntu /bin/bash
 
 Sometimes this can use a more complex value string, as for `-v`:
 
-    $ docker run -v /host:/container example/mysql
+    $ sudo docker run -v /host:/container example/mysql
 
 ### Strings and Integers
 
@@ -104,10 +104,10 @@ To use lxc as the execution driver, use `docker -d -e lxc`.
 The docker client will also honor the `DOCKER_HOST` environment variable to set
 the `-H` flag for the client.
 
-    $ docker -H tcp://0.0.0.0:2375 ps
+    $ sudo docker -H tcp://0.0.0.0:2375 ps
     # or
     $ export DOCKER_HOST="tcp://0.0.0.0:2375"
-    $ docker ps
+    $ sudo docker ps
     # both are equal
 
 To run the daemon with [systemd socket activation](
@@ -271,7 +271,7 @@ If you wish to keep the intermediate containers after the build is
 complete, you must use `--rm=false`. This does not
 affect the build cache.
 
-    $ docker build .
+    $ sudo docker build .
     Uploading context 18.829 MB
     Uploading context
     Step 0 : FROM busybox
@@ -281,7 +281,7 @@ affect the build cache.
      ---> 99cc1ad10469
     Successfully built 99cc1ad10469
     $ echo ".git" > .dockerignore
-    $ docker build .
+    $ sudo docker build .
     Uploading context  6.76 MB
     Uploading context
     Step 0 : FROM busybox
@@ -355,9 +355,9 @@ If this behavior is undesired, set the 'p' option to false.
     ID                  IMAGE               COMMAND             CREATED             STATUS              PORTS
     c3f279d17e0a        ubuntu:12.04        /bin/bash           7 days ago          Up 25 hours
     197387f1b436        ubuntu:12.04        /bin/bash           7 days ago          Up 25 hours
-    $ docker commit c3f279d17e0a  SvenDowideit/testimage:version3
+    $ sudo docker commit c3f279d17e0a  SvenDowideit/testimage:version3
     f5283438590d
-    $ docker images | head
+    $ sudo docker images | head
     REPOSITORY                        TAG                 ID                  CREATED             VIRTUAL SIZE
     SvenDowideit/testimage            version3            f5283438590d        16 seconds ago      335.7 MB
 
@@ -369,6 +369,63 @@ path.  Paths are relative to the root of the filesystem.
     Usage: docker cp CONTAINER:PATH HOSTPATH
 
     Copy files/folders from the PATH to the HOSTPATH
+
+
+## create
+
+Creates a new container.
+
+    Usage: docker create [OPTIONS] IMAGE[:TAG] [COMMAND] [ARG...]
+
+
+    -a, --attach=[]            Attach to STDIN, STDOUT, STDERR.
+    -c, --cpu-shares=0         CPU shares (relative weight)
+    --cidfile=""               Write the container ID to the file
+    --dns=[]                   Set custom DNS servers
+    --dns-search=[]            Set custom DNS search domains
+    -e, --env=[]               Set environment variables
+    --entrypoint=""            Overwrite the default entrypoint of the image
+    --env-file=[]              Read in a line delimited file of environment variables
+    --expose=[]                Expose a port from the container without publishing it to your host
+    -h, --hostname=""          Container host name
+    -i, --interactive=false    Keep `STDIN` open even if not attached
+    --link=[]                  Add link to another container (name:alias)
+    --lxc-conf=[]              (lxc exec-driver only) Add custom lxc options --lxc-conf="lxc.cgroup.cpuset.cpus = 0,1"
+    -m, --memory=""            Memory limit (format: <number><optional unit>, where unit = b, k, m or g)
+    --name=""                  Assign a name to the container
+    --net="bridge"             Set the Network mode for the container
+                                 'bridge': creates a new network stack for the container on the docker bridge
+                                 'none': no networking for this container
+                                 'container:<name|id>': reuses another container network stack
+                                 'host': use the host network stack inside the container
+    -p, --publish=[]           Publish a container's port to the host
+                                 format: ip:hostPort:containerPort | ip::containerPort | hostPort:containerPort
+                                 (use 'docker port' to see the actual mapping)
+    -P, --publish-all=false    Publish all exposed ports to the host interfaces
+    --privileged=false         Give extended privileges to this container
+    -t, --tty=false            Allocate a pseudo-TTY
+    -u, --user=""              Username or UID
+    -v, --volume=[]            Bind mount a volume (e.g. from the host: -v /host:/container, from docker: -v /container)
+    --volumes-from=[]          Mount volumes from the specified container(s)
+    -w, --workdir=""           Working directory inside the container
+
+
+The `docker create` command creates a writeable container layer over
+the specified image and prepares it for running the specified command.
+The container ID is then printed to `STDOUT`.
+This is similar to `docker run -d` except the container is never started.
+You can then use the `docker start <container_id>` command to start the
+container at any point.
+
+This is useful when you want to set up a container configuration ahead
+of time so that it is ready to start when you need it.
+
+### Example:
+
+    $ sudo docker create -t -i fedora bash
+    6d8af538ec541dd581ebc2a24153a28329acb5268abe5ef868c1f1a261221752
+    $ sudo docker start -a -i 6d8af538ec5
+    bash-4.2#
 
 ## diff
 
@@ -464,7 +521,7 @@ For example:
 
 To see how the `docker:latest` image was built:
 
-    $ docker history docker
+    $ sudo docker history docker
     IMAGE                                                              CREATED             CREATED BY                                                                                                                                                 SIZE
     3e23a5875458790b7a806f95f7ec0d0b2a5c1659bfc899c89f939f6d5b8f7094   8 days ago          /bin/sh -c #(nop) ENV LC_ALL=C.UTF-8                                                                                                                       0 B
     8578938dd17054dce7993d21de79e96a037400e8d28e15e7290fea4f65128a36   8 days ago          /bin/sh -c dpkg-reconfigure locales &&    locale-gen C.UTF-8 &&    /usr/sbin/update-locale LANG=C.UTF-8                                                    1.245 MB
@@ -729,7 +786,7 @@ If you want to login to a self-hosted registry you can
 specify this by adding the server name.
 
     example:
-    $ docker login localhost:8080
+    $ sudo docker login localhost:8080
 
 ## logout
 
@@ -739,7 +796,7 @@ specify this by adding the server name.
 
 For example:
 
-    $ docker logout localhost:8080
+    $ sudo docker logout localhost:8080
 
 ## logs
 
@@ -760,8 +817,9 @@ Passing a negative number or a non-integer to `--tail` is invalid and the
 value is set to `all` in that case. This behavior may change in the future.
 
 The `docker logs --timestamp` commands will add an RFC3339Nano
-timestamp, for example `2014-05-10T17:42:14.999999999Z07:00`, to each
-log entry.
+timestamp, for example `2014-09-16T06:17:46.000000000Z`, to each
+log entry. To ensure that the timestamps for are aligned the
+nano-second part of the timestamp will be padded with zero when necessary.
 
 ## port
 
@@ -772,17 +830,17 @@ log entry.
 You can find out all the ports mapped by not specifying a `PRIVATE_PORT`, or
 just a specific mapping:
 
-    $ docker ps test
+    $ sudo docker ps test
     CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS                                            NAMES
     b650456536c7        busybox:latest      top                 54 minutes ago      Up 54 minutes       0.0.0.0:1234->9876/tcp, 0.0.0.0:4321->7890/tcp   test
-    $ docker port test
+    $ sudo docker port test
     7890/tcp -> 0.0.0.0:4321
     9876/tcp -> 0.0.0.0:1234
-    $ docker port test 7890/tcp
+    $ sudo docker port test 7890/tcp
     0.0.0.0:4321
-    $ docker port test 7890/udp
+    $ sudo docker port test 7890/udp
     2014/06/24 11:53:36 Error: No public port '7890/udp' published for test
-    $ docker port test 7890
+    $ sudo docker port test 7890
     0.0.0.0:4321
 
 ## pause
@@ -820,7 +878,7 @@ further details.
 
 Running `docker ps` showing 2 linked containers.
 
-    $ docker ps
+    $ sudo docker ps
     CONTAINER ID        IMAGE                        COMMAND                CREATED              STATUS              PORTS               NAMES
     4c01db0b339c        ubuntu:12.04                 bash                   17 seconds ago       Up 16 seconds                           webapp
     d7886598dbe2        crosbymichael/redis:latest   /redis-server --dir    33 minutes ago       Up 33 minutes       6379/tcp            redis,webapp/db
@@ -869,15 +927,15 @@ a protocol specifier (https://, for example).
 To download a particular image, or set of images (i.e., a repository),
 use `docker pull`:
 
-    $ docker pull debian
+    $ sudo docker pull debian
     # will pull only the debian:latest image and its intermediate layers 
-    $ docker pull debian:testing
+    $ sudo docker pull debian:testing
     # will pull only the image named debian:testing and any intermediate layers
     # it is based on. (Typically the empty `scratch` image, a MAINTAINER layer,
     # and the un-tarred base).
-    $ docker pull --all-tags centos
+    $ sudo docker pull --all-tags centos
     # will pull all the images from the centos repository
-    $ docker pull registry.hub.docker.com/debian
+    $ sudo docker pull registry.hub.docker.com/debian
     # manually specifies the path to the default Docker registry. This could
     # be replaced with the path to a local registry to pull from another source.
 
@@ -985,6 +1043,7 @@ removed before the image is removed.
     Run a command in a new container
 
       -a, --attach=[]            Attach to STDIN, STDOUT or STDERR.
+      --add-host=[]              Add a custom host-to-IP mapping (host:ip)
       -c, --cpu-shares=0         CPU shares (relative weight)
       --cap-add=[]               Add Linux capabilities
       --cap-drop=[]              Drop Linux capabilities
@@ -1295,6 +1354,35 @@ It is even useful to cherry-pick particular tags of an image repository
 
    $ sudo docker save -o ubuntu.tar ubuntu:lucid ubuntu:saucy
 
+## exec
+
+    Usage: docker exec CONTAINER COMMAND [ARG...]
+
+    Run a command in an existing container
+
+      -d, --detach=false         Detached mode: run the process in the background and exit
+      -i, --interactive=false    Keep STDIN open even if not attached
+      -t, --tty=false            Allocate a pseudo-TTY
+
+The `docker exec` command runs a user specified command as a new process in an existing
+user specified container. The container needs to be active.
+
+The `docker exec` command will typically be used after `docker run`.
+
+### Examples:
+
+    $ sudo docker run --name ubuntu_bash --rm -i -t ubuntu bash
+
+This will create a container named 'ubuntu_bash' and start a bash session.
+
+    $ sudo docker exec -d ubuntu_bash touch /tmp/execWorks
+
+This will create a new file '/tmp/execWorks' inside the existing and active container
+'ubuntu_bash', in the background.
+
+    $ sudo docker exec ubuntu_bash -it bash
+
+This will create a new bash session in the container 'ubuntu_bash'.
 
 ## search
 

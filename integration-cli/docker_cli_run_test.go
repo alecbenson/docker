@@ -1331,6 +1331,23 @@ func TestDnsOptionsBasedOnHostResolvConf(t *testing.T) {
 	logDone("run - dns options based on host resolv.conf")
 }
 
+func TestRunAddHost(t *testing.T) {
+	defer deleteAllContainers()
+	cmd := exec.Command(dockerBinary, "run", "--add-host=extra:86.75.30.9", "busybox", "grep", "extra", "/etc/hosts")
+
+	out, _, err := runCommandWithOutput(cmd)
+	if err != nil {
+		t.Fatal(err, out)
+	}
+
+	actual := strings.Trim(out, "\r\n")
+	if actual != "86.75.30.9\textra" {
+		t.Fatalf("expected '86.75.30.9\textra', but says: '%s'", actual)
+	}
+
+	logDone("run - add-host option")
+}
+
 // Regression test for #6983
 func TestAttachStdErrOnlyTTYMode(t *testing.T) {
 	cmd := exec.Command(dockerBinary, "run", "-t", "-a", "stderr", "busybox", "true")
@@ -1993,4 +2010,121 @@ func TestRunPortInUse(t *testing.T) {
 
 	deleteAllContainers()
 	logDone("run - fail if port already in use")
+}
+
+// "test" should be printed by docker exec
+func TestDockerExec(t *testing.T) {
+	runCmd := exec.Command(dockerBinary, "run", "-d", "--name", "testing", "busybox", "sh", "-c", "echo test > /tmp/file && sleep 100")
+	out, _, _, err := runCommandWithStdoutStderr(runCmd)
+	errorOut(err, t, out)
+
+	execCmd := exec.Command(dockerBinary, "exec", "testing", "cat", "/tmp/file")
+
+	out, _, err = runCommandWithOutput(execCmd)
+	errorOut(err, t, out)
+
+	out = strings.Trim(out, "\r\n")
+
+	if expected := "test"; out != expected {
+		t.Errorf("container exec should've printed %q but printed %q", expected, out)
+	}
+
+	deleteAllContainers()
+
+	logDone("exec - basic test")
+}
+
+// "test" should be printed by docker exec
+func TestDockerExecInteractive(t *testing.T) {
+	runCmd := exec.Command(dockerBinary, "run", "-d", "--name", "testing", "busybox", "sh", "-c", "echo test > /tmp/file && sleep 100")
+	out, _, _, err := runCommandWithStdoutStderr(runCmd)
+	errorOut(err, t, out)
+
+	execCmd := exec.Command(dockerBinary, "exec", "-i", "testing", "sh")
+	stdin, err := execCmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := execCmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := execCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdin.Write([]byte("cat /tmp/file\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	r := bufio.NewReader(stdout)
+	line, err := r.ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	line = strings.TrimSpace(line)
+	if line != "test" {
+		t.Fatalf("Output should be 'test', got '%q'", line)
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+	finish := make(chan struct{})
+	go func() {
+		if err := execCmd.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		close(finish)
+	}()
+	select {
+	case <-finish:
+	case <-time.After(1 * time.Second):
+		t.Fatal("docker exec failed to exit on stdin close")
+	}
+
+	deleteAllContainers()
+
+	logDone("exec - Interactive test")
+}
+
+// Regression test for #7792
+func TestMountOrdering(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "docker_nested_mount_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	tmpDir2, err := ioutil.TempDir("", "docker_nested_mount_test2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir2)
+
+	// Create a temporary tmpfs mount.
+	fooDir := filepath.Join(tmpDir, "foo")
+	if err := os.MkdirAll(filepath.Join(tmpDir, "foo"), 0755); err != nil {
+		t.Fatalf("failed to mkdir at %s - %s", fooDir, err)
+	}
+
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/touch-me", fooDir), []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/touch-me", tmpDir), []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/touch-me", tmpDir2), []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(dockerBinary, "run", "-v", fmt.Sprintf("%s:/tmp", tmpDir), "-v", fmt.Sprintf("%s:/tmp/foo", fooDir), "-v", fmt.Sprintf("%s:/tmp/tmp2", tmpDir2), "-v", fmt.Sprintf("%s:/tmp/tmp2/foo", fooDir), "busybox:latest", "sh", "-c", "ls /tmp/touch-me && ls /tmp/foo/touch-me && ls /tmp/tmp2/touch-me && ls /tmp/tmp2/foo/touch-me")
+	out, _, err := runCommandWithOutput(cmd)
+	if err != nil {
+		t.Fatal(out, err)
+	}
+
+	deleteAllContainers()
+	logDone("run - volumes are mounted in the correct order")
 }
