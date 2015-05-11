@@ -126,14 +126,6 @@ type ResourceStats struct {
 	SystemUsage uint64    `json:"system_usage"`
 }
 
-type Mount struct {
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	Writable    bool   `json:"writable"`
-	Private     bool   `json:"private"`
-	Slave       bool   `json:"slave"`
-}
-
 // Describes a process that will be run inside a container.
 type ProcessConfig struct {
 	exec.Cmd `json:"-"`
@@ -175,4 +167,5 @@ type Command struct {
 	LxcConfig          []string          `json:"lxc_config"`
 	AppArmorProfile    string            `json:"apparmor_profile"`
 	CgroupParent       string            `json:"cgroup_parent"` // The parent cgroup for this command.
+	TmpDir             string            `json:"tmpdir"`        // Directory used to store docker tmpdirs.
 }
