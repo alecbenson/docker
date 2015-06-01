@@ -15,7 +15,7 @@ func getVolumeDriver(_ string) (volume.Driver, error) {
 }
 
 func parseVolumeSource(spec string) (string, string, error) {
-	if !filepath.IsAbs(spec) {
+	if spec != "tmpfs" && !filepath.IsAbs(spec) {
 		return "", "", fmt.Errorf("cannot bind mount volume: %s volume paths must be absolute.", spec)
 	}
 
