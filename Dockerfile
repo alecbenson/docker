@@ -55,6 +55,8 @@ RUN apt-get update && apt-get install -y \
 	s3cmd=1.1.0* \
 	ubuntu-zfs \
 	libzfs-dev \
+	libaudit-common \
+	libaudit-dev \
 	--no-install-recommends
 
 # Get lvm2 source for compiling statically

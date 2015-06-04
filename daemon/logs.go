@@ -24,6 +24,7 @@ type ContainerLogsConfig struct {
 	Since                time.Time
 	UseStdout, UseStderr bool
 	OutStream            io.Writer
+	ShowEvents           bool
 }
 
 func (daemon *Daemon) ContainerLogs(name string, config *ContainerLogsConfig) error {
@@ -129,6 +130,9 @@ func (daemon *Daemon) ContainerLogs(name string, config *ContainerLogsConfig) er
 				}
 				if l.Stream == "stderr" && config.UseStderr {
 					io.WriteString(errStream, logLine)
+				}
+				if l.Stream == "event" && config.ShowEvents {
+					io.WriteString(outStream, logLine)
 				}
 			}
 		}

@@ -20,6 +20,7 @@ func (cli *DockerCli) CmdLogs(args ...string) error {
 		since  = cmd.String([]string{"-since"}, "", "Show logs since timestamp")
 		times  = cmd.Bool([]string{"t", "-timestamps"}, false, "Show timestamps")
 		tail   = cmd.String([]string{"-tail"}, "all", "Number of lines to show from the end of the logs")
+		events = cmd.Bool([]string{"e", "-events"}, false, "Show event logs")
 	)
 	cmd.Require(flag.Exact, 1)
 
@@ -56,6 +57,11 @@ func (cli *DockerCli) CmdLogs(args ...string) error {
 	if *follow {
 		v.Set("follow", "1")
 	}
+
+	if *events {
+		v.Set("events", "1")
+	}
+
 	v.Set("tail", *tail)
 
 	sopts := &streamOpts{

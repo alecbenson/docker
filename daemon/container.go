@@ -209,6 +209,38 @@ func (container *Container) LogEvent(action string) {
 		container.ID,
 		container.Config.Image,
 	)
+
+	//Using a switch here to add flexibility in case this needs to expand in the future.
+	//For now, create, stop, start, kill, and destroy are being logged
+	switch action {
+	case "create", "stop", "start", "kill", "destroy":
+		container.LogEventToFile(action)
+	}
+}
+
+//Provides additional verbosity to docker's logs command by writing event logs to the container's log file.
+func (container *Container) LogEventToFile(action string) error {
+	if container.logDriver == nil {
+		if err := container.startLogging(); err != nil {
+			logrus.Errorf("%v: Failed to start logging: %v", container.ID, err)
+			return err
+		}
+	}
+
+	logMsg := fmt.Sprintf("[Triggered event %s on container %s with privileged=%t.]", action, container.Config.Image, container.hostConfig.Privileged)
+	msg := logger.Message{
+		ContainerID: container.ID,
+		Line:        []byte(logMsg),
+		Source:      "event",
+		Timestamp:   time.Now(),
+	}
+
+	if err := container.logDriver.Log(&msg); err != nil {
+		logrus.Errorf("%v: Failed to log event: %v", container.ID, err)
+		return err
+	}
+
+	return nil
 }
 
 // Evaluates `path` in the scope of the container's basefs, with proper path

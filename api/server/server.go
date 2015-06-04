@@ -581,6 +581,7 @@ func (s *Server) getContainersLogs(version version.Version, w http.ResponseWrite
 	logsConfig := &daemon.ContainerLogsConfig{
 		Follow:     boolValue(r, "follow"),
 		Timestamps: boolValue(r, "timestamps"),
+		ShowEvents: boolValue(r, "events"),
 		Since:      since,
 		Tail:       r.Form.Get("tail"),
 		UseStdout:  stdout,
