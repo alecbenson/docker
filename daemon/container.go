@@ -31,6 +31,7 @@ import (
 	"github.com/docker/docker/links"
 	"github.com/docker/docker/nat"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/audit"
 	"github.com/docker/docker/pkg/broadcastwriter"
 	"github.com/docker/docker/pkg/directory"
 	"github.com/docker/docker/pkg/etchosts"
@@ -219,6 +220,7 @@ func (container *Container) LogEvent(action string) {
 }
 
 //Provides additional verbosity to docker's logs command by writing event logs to the container's log file.
+//Additionally logs to the audit log
 func (container *Container) LogEventToFile(action string) error {
 	if container.logDriver == nil {
 		if err := container.startLogging(); err != nil {
@@ -227,13 +229,18 @@ func (container *Container) LogEventToFile(action string) error {
 		}
 	}
 
-	logMsg := fmt.Sprintf("[Triggered event %s on container %s with privileged=%t.]", action, container.Config.Image, container.hostConfig.Privileged)
+	logMsg := fmt.Sprintf("[Triggered action=%s container=%s privileged=%t command=%v]",
+		action, container.Config.Image, container.hostConfig.Privileged, *container.Config.Cmd)
 	msg := logger.Message{
 		ContainerID: container.ID,
 		Line:        []byte(logMsg),
 		Source:      "event",
 		Timestamp:   time.Now(),
 	}
+
+	audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL,
+		fmt.Sprintf("action=%s, privileged=%t, image=%s, command=%v", action,
+			container.hostConfig.Privileged, container.Config.Image, *container.Config.Cmd), true)
 
 	if err := container.logDriver.Log(&msg); err != nil {
 		logrus.Errorf("%v: Failed to log event: %v", container.ID, err)

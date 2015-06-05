@@ -27,7 +27,11 @@ continue to block until a client connects or an error occurs.
 */
 package listenbuffer
 
-import "net"
+import (
+	"fmt"
+	"github.com/docker/docker/pkg/audit"
+	"net"
+)
 
 // NewListenBuffer returns a net.Listener listening on addr with the protocol
 // passed. The channel passed is used to activate the listenbuffer when the
@@ -68,9 +72,18 @@ func (l *defaultListener) Accept() (net.Conn, error) {
 	// if the listen has been told it is ready then we can go ahead and
 	// start returning connections
 	if l.ready {
-		return l.wrapped.Accept()
+		conn, err := l.wrapped.Accept()
+		if err == nil {
+			auditcreds, err := audit.GetAuditUcred(conn)
+			if err == nil {
+				audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL,
+					fmt.Sprintf("loginuid=%d reason=connected", auditcreds.LoginUid), auditcreds.Success)
+			}
+		}
+		return conn, nil
 	}
 	<-l.activate
 	l.ready = true
+
 	return l.Accept()
 }

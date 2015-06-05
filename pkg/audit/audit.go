@@ -17,8 +17,19 @@ import "C"
 
 import (
 	"fmt"
+	"github.com/Sirupsen/logrus"
+	"io/ioutil"
+	"net"
+	"strconv"
+	"syscall"
 	"unsafe"
 )
+
+type AuditUCred struct {
+	LoginUid int
+	Success  bool
+	Ucred    *syscall.Ucred
+}
 
 const (
 	AUDIT_VIRT_CONTROL    = 2500
@@ -77,4 +88,35 @@ func AuditFormatVars(vars map[string]string) string {
 		result += fmt.Sprintf(" %s %s,", key, value)
 	}
 	return result
+}
+
+//Generates a  AuditUcred struct containing the login UID and ucred struct of the socket connection
+func GetAuditUcred(conn net.Conn) (AuditUCred, error) {
+	if unixconn, ok := conn.(*net.UnixConn); ok {
+		file, err := unixconn.File()
+		if err != nil {
+			return AuditUCred{Success: false, LoginUid: -1}, err
+		}
+		fd := int(file.Fd())
+		ucred, err := syscall.GetsockoptUcred(fd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+		if err != nil {
+			logrus.Errorf("Could not get credentials for given fd: %v", err)
+			return AuditUCred{Success: false, LoginUid: -1}, err
+		}
+
+		loginuid, err := ioutil.ReadFile(fmt.Sprintf("/proc/%d/loginuid", ucred.Pid))
+		if err != nil {
+			logrus.Errorf("Error reading loginuid: %v", err)
+			return AuditUCred{Success: false, LoginUid: -1}, err
+		}
+
+		loginuid_int, err := strconv.Atoi(string(loginuid))
+		if err != nil {
+			logrus.Errorf("Failed to convert loginuid to int: %v", err)
+		}
+
+		return AuditUCred{Success: true, LoginUid: loginuid_int, Ucred: ucred}, nil
+	}
+	return AuditUCred{Success: false, LoginUid: -1}, nil
+
 }
