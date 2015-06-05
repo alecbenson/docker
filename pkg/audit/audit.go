@@ -1,8 +1,10 @@
 /*
-  The audit package is a go bindings to libaudit that only allows for
+  The audit package is a go bindings to libaudit that allows for
   logging audit events.
 
   Author Steve Grubb <sgrubb@redhat.com>
+  Additional changes to these bindings have been made by Alec Benson <albenson@redhat.com>
+
 */
 
 package audit
@@ -36,8 +38,6 @@ const (
 	AUDIT_VIRT_RESOURCE   = 2501
 	AUDIT_VIRT_MACHINE_ID = 2502
 )
-
-// type=VIRT_CONTROL msg=audit(08/05/2014 17:01:05.891:6471) : pid=1265 uid=root auid=unset ses=unset subj=system_u:system_r:virtd_t:s0-s0:c0.c1023 msg='virt=kvm op=start reason=booted vm=vm1 uuid=462dcd6d-fb68-4a26-a96f-56eb024515b9 vm-pid=22527 exe=/usr/sbin/libvirtd hostname=? addr=? terminal=? res=success'
 
 func AuditValueNeedsEncoding(str string) bool {
 	cstr := C.CString(str)
