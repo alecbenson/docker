@@ -173,3 +173,7 @@ func (container *Container) UnmountVolumes(forceSyscall bool) error {
 func (container *Container) registerMachine() {
 	return nil
 }
+
+func (c *Container) AuditLogEvent(action string, w http.ResponseWriter, r *http.Request) error {
+	return nil
+}

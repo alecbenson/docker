@@ -24,7 +24,6 @@ import (
 	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/graph"
-	"github.com/docker/docker/pkg/audit"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/parsers"
@@ -304,9 +303,9 @@ func (s *Server) postContainersKill(version version.Version, w http.ResponseWrit
 		return err
 	}
 
-	c, err := s.daemon.Get(name)
+	container, err := s.daemon.Get(name)
 	if err == nil {
-		audit.AuditLogEvent("kill", c, w, r)
+		container.AuditLogEvent("kill", w, r)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -909,7 +908,7 @@ func (s *Server) postContainersCreate(version version.Version, w http.ResponseWr
 
 	container, err := s.daemon.Get(name)
 	if err == nil {
-		audit.AuditLogEvent("create", container, w, r)
+		container.AuditLogEvent("create", w, r)
 	}
 
 	return writeJSON(w, http.StatusCreated, &types.ContainerCreateResponse{
@@ -1037,7 +1036,7 @@ func (s *Server) postContainersStart(version version.Version, w http.ResponseWri
 
 	container, err := s.daemon.Get(vars["name"])
 	if err == nil {
-		audit.AuditLogEvent("start", container, w, r)
+		container.AuditLogEvent("start", w, r)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1064,7 +1063,7 @@ func (s *Server) postContainersStop(version version.Version, w http.ResponseWrit
 
 	container, err := s.daemon.Get(vars["name"])
 	if err == nil {
-		audit.AuditLogEvent("stop", container, w, r)
+		container.AuditLogEvent("stop", w, r)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1359,7 +1358,7 @@ func (s *Server) postContainerExecCreate(version version.Version, w http.Respons
 
 	container, err := s.daemon.Get(name)
 	if err == nil {
-		audit.AuditLogEvent("create", container, w, r)
+		container.AuditLogEvent("create", w, r)
 	}
 
 	return writeJSON(w, http.StatusCreated, &types.ContainerExecCreateResponse{

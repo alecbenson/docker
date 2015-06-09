@@ -1,3 +1,4 @@
+// +build linux
 /*
   The audit package is a go bindings to libaudit that allows for
   logging audit events.
@@ -19,6 +20,7 @@ import "C"
 
 import (
 	"fmt"
+	"log/syslog"
 	"unsafe"
 )
 
@@ -77,4 +79,14 @@ func AuditFormatVars(vars map[string]string) string {
 		result += fmt.Sprintf(" %s %s,", key, value)
 	}
 	return result
+}
+
+func LogSyslog(message string) {
+	logger, err := syslog.New(syslog.LOG_ALERT, "Docker")
+	defer logger.Close()
+
+	if err != nil {
+		fmt.Printf("Error logging to syslog: %v", err)
+	}
+	logger.Info(message)
 }

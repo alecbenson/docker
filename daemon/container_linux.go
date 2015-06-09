@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/docker/docker/links"
 	"github.com/docker/docker/nat"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/audit"
 	"github.com/docker/docker/pkg/directory"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/stringid"
@@ -29,6 +31,7 @@ import (
 	"github.com/docker/docker/utils"
 	"github.com/docker/libcontainer/configs"
 	"github.com/docker/libcontainer/devices"
+	"github.com/docker/libcontainer/user"
 	"github.com/docker/libnetwork"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/options"
@@ -1032,4 +1035,44 @@ func (container *Container) registerMachine() {
 
 func (container *Container) terminateMachine() {
 	systemd.TerminateMachine(container.Name[1:])
+}
+
+func (c *Container) AuditLogEvent(action string, w http.ResponseWriter, r *http.Request) error {
+	var message string
+	command := *c.Config.Cmd
+	image := c.Config.Image
+	name := c.Config.Hostname
+	privileged := c.hostConfig.Privileged
+
+	//Get user name
+	username, err := user.CurrentUser()
+	if err != nil {
+		message = fmt.Sprintf("type=docker action=%s cmd=%s image=%s name=%s privileged=%t",
+			action, command, image, name, privileged)
+		audit.LogSyslog(message)
+		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
+	}
+
+	//Get user credentials
+	ucred, err := audit.ReadUcred(w, r)
+	if err != nil {
+		message = fmt.Sprintf("type=docker action=%s uname=%s cmd=%s image=%s name=%s privileged=%t",
+			action, username.Name, command, image, name, privileged)
+		audit.LogSyslog(message)
+		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
+	}
+
+	//Get user loginuid
+	loginuid, err := audit.ReadLoginUid(ucred)
+	if err != nil {
+		message = fmt.Sprintf("type=docker action=%s uname=%s cmd=%s image=%s name=%s privileged=%t",
+			action, username.Name, command, image, name, privileged)
+		audit.LogSyslog(message)
+		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
+	}
+
+	message = fmt.Sprintf("type=docker action=%s uname=%s auid=%d cmd=%s image=%s name=%s privileged=%t",
+		action, username.Name, loginuid, command, image, name, privileged)
+	audit.LogSyslog(message)
+	return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
 }
