@@ -24,6 +24,7 @@ import (
 	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/graph"
+	"github.com/docker/docker/pkg/audit"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/parsers"
@@ -52,10 +53,11 @@ type ServerConfig struct {
 }
 
 type Server struct {
-	daemon  *daemon.Daemon
-	cfg     *ServerConfig
-	router  *mux.Router
-	start   chan struct{}
+	daemon *daemon.Daemon
+	cfg    *ServerConfig
+	router *mux.Router
+	start  chan struct{}
+
 	servers []serverCloser
 }
 
@@ -300,6 +302,11 @@ func (s *Server) postContainersKill(version version.Version, w http.ResponseWrit
 
 	if err := s.daemon.ContainerKill(name, sig); err != nil {
 		return err
+	}
+
+	c, err := s.daemon.Get(name)
+	if err == nil {
+		audit.AuditLogEvent("kill", c, w, r)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -900,6 +907,11 @@ func (s *Server) postContainersCreate(version version.Version, w http.ResponseWr
 		return err
 	}
 
+	container, err := s.daemon.Get(name)
+	if err == nil {
+		audit.AuditLogEvent("create", container, w, r)
+	}
+
 	return writeJSON(w, http.StatusCreated, &types.ContainerCreateResponse{
 		ID:       containerId,
 		Warnings: warnings,
@@ -1022,6 +1034,12 @@ func (s *Server) postContainersStart(version version.Version, w http.ResponseWri
 		}
 		return err
 	}
+
+	container, err := s.daemon.Get(vars["name"])
+	if err == nil {
+		audit.AuditLogEvent("start", container, w, r)
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -1043,8 +1061,13 @@ func (s *Server) postContainersStop(version version.Version, w http.ResponseWrit
 		}
 		return err
 	}
-	w.WriteHeader(http.StatusNoContent)
 
+	container, err := s.daemon.Get(vars["name"])
+	if err == nil {
+		audit.AuditLogEvent("stop", container, w, r)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
@@ -1332,6 +1355,11 @@ func (s *Server) postContainerExecCreate(version version.Version, w http.Respons
 	if err != nil {
 		logrus.Errorf("Error setting up exec command in container %s: %s", name, err)
 		return err
+	}
+
+	container, err := s.daemon.Get(name)
+	if err == nil {
+		audit.AuditLogEvent("create", container, w, r)
 	}
 
 	return writeJSON(w, http.StatusCreated, &types.ContainerExecCreateResponse{
