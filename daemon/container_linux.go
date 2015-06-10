@@ -1039,16 +1039,15 @@ func (container *Container) terminateMachine() {
 
 func (c *Container) AuditLogEvent(action string, w http.ResponseWriter, r *http.Request) error {
 	var message string
-	command := *c.Config.Cmd
-	image := c.Config.Image
-	name := c.Config.Hostname
-	privileged := c.hostConfig.Privileged
+
+	config_stripped := audit.ParseConfig(*c.Config)
+	hostConfig_stripped := audit.ParseConfig(*c.hostConfig)
 
 	//Get user name
 	username, err := user.CurrentUser()
 	if err != nil {
-		message = fmt.Sprintf("type=docker action=%s cmd=%s image=%s name=%s privileged=%t",
-			action, command, image, name, privileged)
+		message = fmt.Sprintf("Action: %s, Config: %v Host Config: %v",
+			action, config_stripped, hostConfig_stripped)
 		audit.LogSyslog(message)
 		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
 	}
@@ -1056,8 +1055,8 @@ func (c *Container) AuditLogEvent(action string, w http.ResponseWriter, r *http.
 	//Get user credentials
 	ucred, err := audit.ReadUcred(w, r)
 	if err != nil {
-		message = fmt.Sprintf("type=docker action=%s uname=%s cmd=%s image=%s name=%s privileged=%t",
-			action, username.Name, command, image, name, privileged)
+		message = fmt.Sprintf("Action: %s, Config: %v Host Config: %v",
+			action, config_stripped, hostConfig_stripped)
 		audit.LogSyslog(message)
 		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
 	}
@@ -1065,14 +1064,15 @@ func (c *Container) AuditLogEvent(action string, w http.ResponseWriter, r *http.
 	//Get user loginuid
 	loginuid, err := audit.ReadLoginUid(ucred)
 	if err != nil {
-		message = fmt.Sprintf("type=docker action=%s uname=%s cmd=%s image=%s name=%s privileged=%t",
-			action, username.Name, command, image, name, privileged)
+		message = fmt.Sprintf("Action: %s, Username: %s Config: %v Host Config: %v",
+			action, username.Name, config_stripped, hostConfig_stripped)
 		audit.LogSyslog(message)
 		return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
 	}
 
-	message = fmt.Sprintf("type=docker action=%s uname=%s auid=%d cmd=%s image=%s name=%s privileged=%t",
-		action, username.Name, loginuid, command, image, name, privileged)
+	message = fmt.Sprintf("Action: %s, Login UID: %d, Username: %s Config: %v Host Config: %v",
+		action, loginuid, username.Name, config_stripped, hostConfig_stripped)
+
 	audit.LogSyslog(message)
 	return audit.AuditLogUserEvent(audit.AUDIT_VIRT_CONTROL, message, true)
 }

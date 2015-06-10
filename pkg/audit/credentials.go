@@ -3,6 +3,7 @@
 package audit
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/Sirupsen/logrus"
 	"io/ioutil"
@@ -54,4 +55,29 @@ func ReadLoginUid(ucred *syscall.Ucred) (int, error) {
 		logrus.Errorf("Failed to convert loginuid to int: %v", err)
 	}
 	return loginuid_int, nil
+}
+
+//Traverses the config struct and grabs non-standard values for logging
+func ParseConfig(config interface{}) string {
+	configReflect := reflect.ValueOf(config)
+	var result bytes.Buffer
+
+	for index := 0; index < configReflect.NumField(); index++ {
+		val := reflect.Indirect(configReflect.Field(index))
+
+		//Get the zero value of the struct's field
+		if val.IsValid() {
+			zeroVal := reflect.Zero(val.Type()).Interface()
+
+			//If the configuration value is not a zero value, then we store it
+			//We use deep equal here because some types cannot be compared with the standard equality operators
+			if val.Kind() == reflect.Bool || !reflect.DeepEqual(zeroVal, val.Interface()) {
+				fieldName := configReflect.Type().Field(index).Name
+				line := fmt.Sprintf("%s=%+v, ", fieldName, val.Interface())
+				result.WriteString(line)
+
+			}
+		}
+	}
+	return result.String()
 }
