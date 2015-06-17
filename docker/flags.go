@@ -25,9 +25,10 @@ func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byName) Less(i, j int) bool { return a[i].name < a[j].name }
 
 var (
-	dockerCertPath     = os.Getenv("DOCKER_CERT_PATH")
-	dockerTlsVerify    = os.Getenv("DOCKER_TLS_VERIFY") != ""
-	dockerRequireAuthn = false
+	dockerCertPath      = os.Getenv("DOCKER_CERT_PATH")
+	dockerTlsVerify     = os.Getenv("DOCKER_TLS_VERIFY") != ""
+	dockerRequireAuthn  = false
+	dockerAuthViaSocket = false
 
 	dockerCommands = []command{
 		{"attach", "Attach to a running container"},
@@ -97,6 +98,7 @@ var (
 	flRequireAuthn = flag.Bool([]string{"a", "-authn"}, dockerRequireAuthn, "Require daemon clients to authenticate")
 	flBasicRealm   = flag.String([]string{"-realm"}, "localhost", "Realm name to advertise for Basic auth")
 	flKeytab       = flag.String([]string{"-keytab"}, "", "Keytab to use for Negotiate auth")
+	flAuthViaSock  = flag.Bool([]string{"U", "local-auth"}, dockerAuthViaSocket, "Trust the kernel to authenticate clients")
 
 	// these are initialized in init() below since their default values depend on dockerCertPath which isn't fully initialized until init() runs
 	tlsOptions tlsconfig.Options

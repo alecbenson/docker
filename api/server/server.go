@@ -40,9 +40,10 @@ import (
 )
 
 type ServerAuthOptions struct {
-	RequireAuthn bool
-	BasicRealm   string
-	Keytab       string
+	RequireAuthn   bool
+	BasicRealm     string
+	Keytab         string
+	AuthnViaSocket bool
 }
 
 type ServerConfig struct {
