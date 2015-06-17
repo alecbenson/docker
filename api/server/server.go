@@ -41,6 +41,7 @@ import (
 
 type ServerAuthOptions struct {
 	RequireAuthn bool
+	BasicRealm   string
 }
 
 type ServerConfig struct {

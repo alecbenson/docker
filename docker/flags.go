@@ -95,6 +95,7 @@ var (
 	flHelp         = flag.Bool([]string{"h", "-help"}, false, "Print usage")
 	flTlsVerify    = flag.Bool([]string{"-tlsverify"}, dockerTlsVerify, "Use TLS and verify the remote")
 	flRequireAuthn = flag.Bool([]string{"a", "-authn"}, dockerRequireAuthn, "Require daemon clients to authenticate")
+	flBasicRealm   = flag.String([]string{"-realm"}, "localhost", "Realm name to advertise for Basic auth")
 
 	// these are initialized in init() below since their default values depend on dockerCertPath which isn't fully initialized until init() runs
 	tlsOptions tlsconfig.Options

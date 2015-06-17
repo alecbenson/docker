@@ -116,6 +116,7 @@ func mainDaemon() {
 	serverConfig = setPlatformServerConfig(serverConfig, daemonCfg)
 
 	serverConfig.AuthOptions.RequireAuthn = *flRequireAuthn
+	serverConfig.AuthOptions.BasicRealm = *flBasicRealm
 
 	if *flTls {
 		if *flTlsVerify {
