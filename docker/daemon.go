@@ -117,6 +117,7 @@ func mainDaemon() {
 
 	serverConfig.AuthOptions.RequireAuthn = *flRequireAuthn
 	serverConfig.AuthOptions.BasicRealm = *flBasicRealm
+	serverConfig.AuthOptions.Keytab = *flKeytab
 
 	if *flTls {
 		if *flTlsVerify {
