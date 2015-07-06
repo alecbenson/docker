@@ -1518,10 +1518,13 @@ func (s *Server) makeHttpHandler(logging bool, auth ServerAuthOptions, localMeth
 
 		if auth.RequireAuthn {
 			user, err := s.httpAuthenticate(w, r, auth)
+			s.LogAuthAction(w, r, user, auth.RequireAuthn)
 			if user.Name == "" && !user.HaveUid {
 				httpError(w, err)
 				return
 			}
+		} else {
+			s.LogAction(w, r)
 		}
 
 		if err := handlerFunc(version, w, r, mux.Vars(r)); err != nil {
