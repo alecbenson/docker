@@ -15,6 +15,7 @@ import (
 	"reflect"
 
 	"github.com/docker/docker/daemon"
+	"github.com/docker/docker/pkg/audit"
 )
 
 //Retrieves the container and "action" (start, stop, kill, etc) from the http request
@@ -95,10 +96,12 @@ func (s *Server) LogAuthAction(w http.ResponseWriter, r *http.Request, user User
 	if !success {
 		message = fmt.Sprintf("{AuthSuccess=%v, Action=%v, %s}", success, action, message)
 		logSyslog(message)
+		logAuditlog(c, action, user, success)
 		return nil
 	}
 	message = fmt.Sprintf("{Action=%v, %s}", action, message)
 	logSyslog(message)
+	logAuditlog(c, action, user, success)
 	return nil
 }
 
@@ -110,4 +113,51 @@ func logSyslog(message string) {
 		fmt.Printf("Error logging to syslog: %v", err)
 	}
 	logger.Info(message)
+}
+
+//Logs an API event to the audit log
+func logAuditlog(c *daemon.Container, action string, user User, success bool) {
+	virt := audit.AUDIT_VIRT_CONTROL
+	vm := "?"
+	vm_pid := "?"
+	exe := "?"
+	hostname := "?"
+	username := "?"
+	auid := "?"
+
+	if c != nil {
+		vm = c.Config.Image
+		vm_pid = fmt.Sprint(c.State.Pid)
+		exe = c.Path
+		hostname = c.Config.Hostname
+	}
+
+	if user.Name != "" {
+		username = user.Name
+	}
+
+	if user.HaveUid {
+		auid = fmt.Sprint(user.Uid)
+	}
+
+	vars := map[string]string{
+		"op":       action,
+		"reason":   "api",
+		"vm":       vm,
+		"vm-pid":   vm_pid,
+		"user":     username,
+		"auid":     auid,
+		"exe":      exe,
+		"hostname": hostname,
+	}
+
+	//Encoding is a function of libaudit that ensures
+	//that the audit values contain only approved characters.
+	for key, value := range vars {
+		if audit.AuditValueNeedsEncoding(value) {
+			vars[key] = audit.AuditEncodeNVString(key, value)
+		}
+	}
+	message := audit.AuditFormatVars(vars)
+	audit.AuditLogUserEvent(virt, message, success)
 }
