@@ -336,6 +336,16 @@ func initNetworkController(config *Config) (libnetwork.NetworkController, error)
 		return nil, fmt.Errorf("Error creating default \"host\" network: %v", err)
 	}
 
+	// Initialize default driver "namespace"
+	if err := controller.ConfigureNetworkDriver("namespace", options.Generic{}); err != nil {
+		return nil, fmt.Errorf("Error initializing namespace driver: %v", err)
+	}
+
+	// Initialize default network on "namespace"
+	if _, err := controller.NewNetwork("namespace", "namespace"); err != nil {
+		return nil, fmt.Errorf("Error creating default \"namespace\" network: %v", err)
+	}
+
 	if !config.DisableBridge {
 		// Initialize default driver "bridge"
 		if err := initBridgeDriver(controller, config); err != nil {

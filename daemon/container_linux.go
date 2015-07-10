@@ -388,6 +388,27 @@ func (container *Container) buildJoinOptions() ([]libnetwork.EndpointOption, err
 		joinOptions = append(joinOptions, libnetwork.JoinOptionUseDefaultSandbox())
 	}
 
+	//If the user is in Namespace mode, use a custom namespace
+	if container.hostConfig.NetworkMode.IsNamespace() {
+		joinOptions = append(joinOptions,
+			libnetwork.JoinOptionUseCustomNamespace())
+
+		//Get the path of the desired namespace
+		nspath, err := container.getCustomNamespace()
+		if err != nil {
+			fmt.Errorf("Failed to get custom namespace path: %v", err)
+			return nil, err
+		}
+
+		nsOptions := options.Generic{
+			netlabel.GenericNamespaceOptions: options.Generic{
+				"ContainerID":     container.ID,
+				"CustomNamespace": nspath,
+			},
+		}
+		joinOptions = append(joinOptions, libnetwork.JoinOptionGeneric(nsOptions))
+	}
+
 	container.HostsPath, err = container.GetRootResourcePath("hosts")
 	if err != nil {
 		return nil, err
@@ -1001,6 +1022,24 @@ func (container *Container) getNetworkedContainer() (*Container, error) {
 		return nc, nil
 	default:
 		return nil, fmt.Errorf("network mode not set to container")
+	}
+}
+
+func (container *Container) getCustomNamespace() (string, error) {
+	parts := strings.SplitN(string(container.hostConfig.NetworkMode), ":", 2)
+	switch parts[0] {
+	case "namespace":
+		if len(parts) != 2 {
+			return "", fmt.Errorf("no namespace specified for container to use.")
+		}
+		file := parts[1]
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			fmt.Errorf("Could not find namespace: %s", file)
+			return "", err
+		}
+		return file, nil
+	default:
+		return "", fmt.Errorf("network mode not set to namespace")
 	}
 }
 
