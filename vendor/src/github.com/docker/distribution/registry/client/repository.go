@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/digest"
@@ -442,6 +443,7 @@ func (bs *blobs) Put(ctx context.Context, mediaType string, p []byte) (distribut
 
 func (bs *blobs) Create(ctx context.Context) (distribution.BlobWriter, error) {
 	u, err := bs.ub.BuildBlobUploadURL(bs.name)
+	logrus.Warnf("Blob url is %v", u)
 
 	resp, err := bs.client.Post(u, "", nil)
 	if err != nil {

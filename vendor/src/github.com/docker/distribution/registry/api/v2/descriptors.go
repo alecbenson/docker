@@ -40,6 +40,20 @@ var (
 		Description: `Digest of desired blob.`,
 	}
 
+	fromRepoParameter = ParameterDescriptor{
+		Name:        "from",
+		Type:        "string",
+		Format:      RepositoryNameRegexp.String(),
+		Description: `When doing a cross-repository push, from provides the name of the source repository.`,
+	}
+
+	mountDigestParameter = ParameterDescriptor{
+		Name:        "mount",
+		Type:        "string",
+		Format:      digest.DigestRegexp.String(),
+		Description: "Blob reference to mount from source to target.",
+	}
+
 	hostHeader = ParameterDescriptor{
 		Name:        "Host",
 		Type:        "string",
@@ -958,6 +972,8 @@ var routeDescriptors = []RouteDescriptor{
 								Regexp:      digest.DigestRegexp,
 								Description: `Digest of uploaded blob. If present, the upload will be completed, in a single request, with contents of the request body as the resulting blob.`,
 							},
+							mountDigestParameter,
+							fromRepoParameter,
 						},
 						Body: BodyDescriptor{
 							ContentType: "application/octect-stream",
